@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PN Junction Diode Characteristics Simulation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 30px;
+            background: #f9f9f9;
+        }
+
+        h1 {
+            color: #2c3e50;
+        }
+
+        .container {
+            max-width: 700px;
+            margin: auto;
+            background: #fff;
+            padding: 24px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px #ccc;
+        }
+
+        #graph {
+            width: 100%;
+            height: 350px;
+        }
+
+        .controls {
+            margin: 20px 0;
+        }
+
+        .output {
+            margin-top: 20px;
+            font-size: 1.1em;
+        }
+
+        label {
+            font-weight: bold;
+        }
+
+        .resistance {
+            color: #2980b9;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>PN Junction Diode Characteristics Simulation</h1>
+        <p><b>AIM:</b> To study the characteristics of a PN Junction diode and measure its static and dynamic resistance
+            from the I-V graph.</p>
+        <canvas id="graph"></canvas>
+        <div class="controls">
+            <label for="voltage">Applied Voltage (V): </label>
+            <input type="range" id="voltage" min="-10" max="10" step="0.01" value="0.2">
+            <span id="voltageValue">0.20</span> V
+        </div>
+        <div class="output">
+            <div>Current (I): <span id="currentValue">0.00</span> mA</div>
+            <div>Static Resistance (V/I): <span class="resistance" id="staticR">-</span> Ω</div>
+            <div>Dynamic Resistance (ΔV/ΔI): <span class="resistance" id="dynamicR">-</span> Ω</div>
+        </div>
+        <p style="font-size:0.95em;color:#888;">Note: The I-V curve is simulated for a typical silicon diode at room
+            temperature.</p>
+    </div>
+    <script>
+        // Diode equation parameters (for simulation)
+        const Is = 1e-12; // Saturation current (A)
+        const n = 1.7;    // Ideality factor
+        const Vt = 0.025; // Thermal voltage (V)
+        const Vbreakdown = -6; // Breakdown voltage (V)
+        const Ibreakdown = -50; // Breakdown current (mA) for visualization
+        const Ileakage = -0.02; // -20uA leakage current (mA)
+        const kneeV = 0.7; // Forward knee voltage for silicon (V)
+
+        // Generate I-V data
+        const voltages = [];
+        const currents = [];
+        for (let v = -10; v <= 10; v += 0.1) {
+            let i;
+            if (v < Vbreakdown) {
+                i = Ibreakdown; // Large negative current in breakdown (mA)
+            } else if (v < 0) {
+                i = Ileakage; // Small reverse leakage current (mA)
+            } else if (v < kneeV) {
+                // Very little current before knee
+                i = Ileakage * (1 - v / kneeV); // smoothly approach 0 at knee
+            } else {
+                // Exponential rise after knee
+                i = 0.02 * Math.exp((v - kneeV) / (n * Vt)); // mA, scale for visual
+            }
+            currents.push(i);
+            voltages.push(v);
+        }
+
+        // Draw the I-V graph
+        const canvas = document.getElementById('graph');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 600;
+        canvas.height = 350;
+
+        function drawGraph(selectedV) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            // Axes
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(50, 300); ctx.lineTo(550, 300); // X axis
+            ctx.moveTo(300, 300); ctx.lineTo(300, 50);   // Y axis
+            ctx.stroke();
+            // Axis labels
+            ctx.font = '16px Arial';
+            ctx.fillStyle = '#333';
+            ctx.fillText('+V', 540, 320);
+            ctx.fillText('-V', 40, 320);
+            ctx.fillText('+I(mA)', 310, 60);
+            ctx.fillText('-I(mA)', 310, 340);
+            ctx.fillText('Forward Voltage', 400, 320);
+            ctx.fillText('Reverse Voltage', 120, 320);
+            ctx.save();
+            ctx.translate(20, 200);
+            ctx.rotate(-Math.PI / 2);
+            ctx.fillText('Current', 0, 0);
+            ctx.restore();
+            ctx.font = '14px Arial';
+            // Breakdown voltage line
+            let xBreak = 300 + (Vbreakdown / 10) * 250;
+            ctx.strokeStyle = '#a020f0';
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.moveTo(xBreak, 300);
+            ctx.lineTo(xBreak, 50);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#a020f0';
+            ctx.fillText('Reverse Breakdown Voltage', xBreak - 80, 70);
+            // Knee voltage line
+            let xKnee = 300 + (kneeV / 10) * 250;
+            ctx.strokeStyle = '#888';
+            ctx.setLineDash([2, 6]);
+            ctx.beginPath();
+            ctx.moveTo(xKnee, 300);
+            ctx.lineTo(xKnee, 50);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#888';
+            ctx.fillText('"knee"', xKnee - 10, 90);
+            ctx.fillText('0.7v Silicon', xKnee - 20, 110);
+            // Region labels
+            ctx.fillStyle = '#1976d2';
+            ctx.fillText('Forward Bias', 400, 100);
+            ctx.fillStyle = '#1976d2';
+            ctx.fillText('Reverse Bias', 100, 100);
+            ctx.fillStyle = '#1e90ff';
+            ctx.fillText('Leakage Current', 120, 220);
+            ctx.fillText('<20μA Silicon', 120, 235);
+            ctx.fillStyle = '#a020f0';
+            ctx.fillText('"Zener" Breakdown or Avalanche Region', 40, 60);
+            // Plot curve
+            ctx.strokeStyle = '#1565c0';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            for (let i = 0; i < voltages.length; i++) {
+                let x = 300 + (voltages[i] / 10) * 250;
+                let y = 300 - Math.max(Math.min(currents[i], 50), -60) * 3;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+            // Mark selected point
+            let idx = Math.round((selectedV + 10) * 10);
+            let x = 300 + (voltages[idx] / 10) * 250;
+            let y = 300 - Math.max(Math.min(currents[idx], 50), -60) * 3;
+            ctx.fillStyle = '#e74c3c';
+            ctx.beginPath();
+            ctx.arc(x, y, 6, 0, 2 * Math.PI);
+            ctx.fill();
+        }
+
+        // Update values and graph
+        function update() {
+            const v = parseFloat(document.getElementById('voltage').value);
+            document.getElementById('voltageValue').textContent = v.toFixed(2);
+            // Calculate current
+            let i;
+            if (v < Vbreakdown) {
+                i = Ibreakdown;
+            } else if (v < 0) {
+                i = Ileakage;
+            } else if (v < kneeV) {
+                i = Ileakage * (1 - v / kneeV);
+            } else {
+                i = 0.02 * Math.exp((v - kneeV) / (n * Vt));
+            }
+            let i_mA = i;
+            document.getElementById('currentValue').textContent = i_mA.toFixed(2);
+            // Static resistance
+            let staticR = v / (i || 1e-12);
+            document.getElementById('staticR').textContent = staticR.toFixed(2);
+            // Dynamic resistance (dV/dI ~ ΔV/ΔI)
+            let dv = 0.01;
+            let i1, i2;
+            if ((v - dv) < Vbreakdown) {
+                i1 = Ibreakdown;
+            } else if ((v - dv) < 0) {
+                i1 = Ileakage;
+            } else if ((v - dv) < kneeV) {
+                i1 = Ileakage * (1 - (v - dv) / kneeV);
+            } else {
+                i1 = 0.02 * Math.exp(((v - dv) - kneeV) / (n * Vt));
+            }
+            if ((v + dv) < Vbreakdown) {
+                i2 = Ibreakdown;
+            } else if ((v + dv) < 0) {
+                i2 = Ileakage;
+            } else if ((v + dv) < kneeV) {
+                i2 = Ileakage * (1 - (v + dv) / kneeV);
+            } else {
+                i2 = 0.02 * Math.exp(((v + dv) - kneeV) / (n * Vt));
+            }
+            let di = i2 - i1;
+            let dynamicR = (2 * dv) / (di || 1e-12);
+            document.getElementById('dynamicR').textContent = dynamicR.toFixed(2);
+            // Draw graph
+            drawGraph(v);
+        }
+
+        document.getElementById('voltage').addEventListener('input', update);
+        update();
+    </script>
+</body>
+
+</html>
